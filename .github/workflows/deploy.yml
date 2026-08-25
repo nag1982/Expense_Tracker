@@ -1,0 +1,113 @@
+name: Test and deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Deployment platform
+        required: true
+        default: vercel
+        type: choice
+        options:
+          - vercel
+          - aws
+          - azure
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+  deploy-vercel:
+    needs: test
+    if: github.event_name == 'push' || inputs.platform == 'vercel'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build deployment
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to production
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  deploy-aws:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'aws'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create deployment package
+        run: zip -r deploy.zip . -x ".git/*" ".github/*" "*.db" ".venv/*" "__pycache__/*" ".pytest_cache/*"
+
+      - name: Deploy to AWS Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.AWS_EB_APPLICATION_NAME }}
+          environment_name: ${{ secrets.AWS_EB_ENVIRONMENT_NAME }}
+          region: ${{ secrets.AWS_REGION }}
+          version_label: expense-tracker-${{ github.sha }}
+          deployment_package: deploy.zip
+
+  deploy-azure:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'azure'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
