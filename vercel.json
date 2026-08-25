@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "env": {
+    "DATABASE_PATH": "/tmp/expense_tracker.db"
+  },
   "builds": [{ "src": "app.py", "use": "@vercel/python" }],
   "routes": [{ "src": "/(.*)", "dest": "app.py" }]
 }
