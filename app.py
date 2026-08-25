@@ -9,7 +9,8 @@ from flask import Flask, flash, g, redirect, render_template, request, session, 
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = Path(__file__).parent
-DATABASE = Path(os.environ.get("DATABASE_PATH", BASE_DIR / "expense_tracker.db"))
+DEFAULT_DATABASE = Path("/tmp/expense_tracker.db") if os.environ.get("VERCEL") else BASE_DIR / "expense_tracker.db"
+DATABASE = Path(os.environ.get("DATABASE_PATH", DEFAULT_DATABASE))
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
 app.config["DATABASE"] = str(DATABASE)
@@ -197,7 +198,7 @@ def edit_transaction(transaction_id):
             description = request.form.get("description", "").strip()
             if not description:
                 raise ValueError("Description is required.")
-            db().execute("UPDATE transactions SET type = ?, amount = ?, category_id = ?, transaction_date = ?, payment_method = ?, description = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", (request.form["type"], str(amount), request.form.get("category_id") or None, request.form.get("transaction_date"), request.form.get("payment_method"), description, request.form.get("notes", "").strip(), transaction_id, g.user["id"]))
+            db().execute("UPDATE transactions SET type = ?, amount = ?, category_id = ?, transaction_date = ?, payment_method = ?, description = ?, notes = ? WHERE id = ? AND user_id = ?", (request.form["type"], str(amount), request.form.get("category_id") or None, request.form.get("transaction_date"), request.form.get("payment_method"), description, request.form.get("notes", "").strip(), transaction_id, g.user["id"]))
             db().commit()
             flash("Transaction updated successfully.", "success")
             return redirect(url_for("transactions"))
