@@ -27,7 +27,8 @@ DEFAULT_CATEGORIES = [("Food", "EXPENSE"), ("Housing", "EXPENSE"), ("Transport",
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(app.config["DATABASE"])
+        DATABASE.parent.mkdir(parents=True, exist_ok=True)
+        g.db = sqlite3.connect(app.config["DATABASE"], timeout=30)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
